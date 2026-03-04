@@ -146,11 +146,10 @@ public class DocumentsFunction
         if (role == "none" || string.IsNullOrEmpty(tenantId))
             return new ObjectResult("No valid role assigned.") { StatusCode = 403 };
 
-        // Step 3 — Select container based on tenant and role.
-        //   Container names are prefixed with the tenant ID so each tenant's documents
-        //   are isolated. Azure RBAC on the containers enforces the actual permission —
-        //   even if this line were wrong, Azure would deny unauthorized operations.
-        var containerName = role == "uploader" ? $"{tenantId}-readwrite" : $"{tenantId}-readonly";
+        // Step 3 — Select the tenant's container.
+        //   Container name is just the tenant ID — all users in a tenant see the same
+        //   files. Role only controls whether they can upload (enforced in UploadDocument).
+        var containerName = tenantId;
         var container = GetContainer(containerName);
 
         // Step 4 — List blobs using the Managed Identity authenticated client.
@@ -207,8 +206,8 @@ public class DocumentsFunction
         if (name.Contains('/') || name.Contains('\\') || name.Contains(".."))
             return new BadRequestObjectResult("Invalid blob name.");
 
-        // Step 4 — Select the tenant-specific container the user is allowed to read from.
-        var containerName = role == "uploader" ? $"{tenantId}-readwrite" : $"{tenantId}-readonly";
+        // Step 4 — Select the tenant's container (same container regardless of role).
+        var containerName = tenantId;
         var blobClient = GetContainer(containerName).GetBlobClient(name);
 
         // Step 5 — Stream the blob content directly to the HTTP response.
@@ -271,12 +270,12 @@ public class DocumentsFunction
         if (string.IsNullOrWhiteSpace(filename))
             filename = $"upload-{DateTime.UtcNow:yyyyMMddHHmmss}.bin";
 
-        // Step 4 — Upload the raw request body directly to the tenant-specific blob container.
+        // Step 4 — Upload the raw request body directly to the tenant's blob container.
         //   overwrite: false means Azure returns 409 Conflict if a blob with this
         //   name already exists, preventing accidental overwrites of existing files.
         //   The request body is streamed directly to storage without buffering the
         //   entire file in memory on the Function host.
-        var containerName = $"{tenantId}-readwrite";
+        var containerName = tenantId;
         var blobClient = GetContainer(containerName).GetBlobClient(filename);
         await blobClient.UploadAsync(req.Body, overwrite: false);
 
