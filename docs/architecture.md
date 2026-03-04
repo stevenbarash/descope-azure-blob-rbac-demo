@@ -1,116 +1,112 @@
 # Architecture
 
-Multi-tenant document portal: Descope handles auth, Azure RBAC handles storage access, no custom authorization code required.
+Three moving parts. One key insight: **the JWT carries everything the Function needs — no database, no extra config, no custom auth code.**
 
 ---
 
-## Overview
+## How it works at a glance
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8fafc', 'primaryBorderColor': '#cbd5e1', 'primaryTextColor': '#1e293b', 'lineColor': '#94a3b8', 'clusterBkg': '#f8fafc', 'clusterBorder': '#e2e8f0', 'edgeLabelBackground': '#ffffff'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8fafc', 'primaryBorderColor': '#e2e8f0', 'primaryTextColor': '#1e293b', 'lineColor': '#94a3b8', 'clusterBkg': '#f8fafc', 'clusterBorder': '#e2e8f0', 'edgeLabelBackground': '#ffffff', 'fontSize': '15px'}}}%%
 flowchart LR
-    subgraph FE["React Frontend"]
-        UI["Descope sign-in flow\n@descope/react-sdk"]
+    U(["User"])
+
+    subgraph DS ["  Descope  "]
+        S1["Sign-in flow\nOTP or Magic Link"]
+        S2["JWT issued\ntenant ID + role inside"]
+        S1 --> S2
     end
 
-    subgraph API["Azure Function (.NET 8)"]
-        direction TB
-        V["Validate JWT\nOIDC discovery"]
-        R["Read tenant + role\nfrom tenants claim"]
-        C["container = tenant ID\nrole gates upload"]
-        V --> R --> C
+    subgraph FN ["  Azure Function  "]
+        F1["Validate JWT\nvia OIDC — no secrets"]
+        F2["container = tenant ID\nrole gates upload"]
+        F1 --> F2
     end
 
-    subgraph BLOB["Azure Blob Storage"]
-        direction TB
-        TA["tenant-a"]
-        TB["tenant-b"]
-        TC["..."]
+    subgraph BL ["  Azure Blob Storage  "]
+        B1["org-a"]
+        B2["org-b"]
     end
 
-    FE -->|"Bearer JWT"| API
-    API -->|"Managed Identity\nno keys"| BLOB
+    U -->|"signs in"| DS
+    DS -->|"JWT"| U
+    U -->|"JWT on every request"| FN
+    FN -->|"Managed Identity\nno storage keys"| BL
 
-    style FE fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
-    style API fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
-    style BLOB fill:#d5e8d4,stroke:#82b366,color:#1e293b
-    style V fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
-    style R fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
-    style C fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
-    style TA fill:#d5e8d4,stroke:#82b366,color:#1e293b
-    style TB fill:#fff2cc,stroke:#d6b656,color:#1e293b
-    style TC fill:#f8fafc,stroke:#cbd5e1,color:#94a3b8
+    style U fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
+    style DS fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
+    style FN fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
+    style BL fill:#f0fdf4,stroke:#16a34a,color:#1e293b
+    style S1 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style S2 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style F1 fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
+    style F2 fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
+    style B1 fill:#dcfce7,stroke:#16a34a,color:#1e293b
+    style B2 fill:#fef9c3,stroke:#ca8a04,color:#1e293b
 ```
 
 ---
 
-## Setup — UI only, no code
+## Setup — two consoles, no code
+
+One-time configuration. Nothing to deploy.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8fafc', 'primaryBorderColor': '#cbd5e1', 'primaryTextColor': '#1e293b', 'lineColor': '#64748b', 'clusterBkg': '#f8fafc', 'clusterBorder': '#e2e8f0', 'edgeLabelBackground': '#ffffff'}}}%%
-flowchart TB
-    subgraph DC["Descope Console"]
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8fafc', 'primaryBorderColor': '#e2e8f0', 'primaryTextColor': '#1e293b', 'lineColor': '#64748b', 'clusterBkg': '#f8fafc', 'clusterBorder': '#e2e8f0', 'edgeLabelBackground': '#ffffff'}}}%%
+flowchart LR
+    subgraph DC ["  Descope Console  "]
         direction TB
-        D1["Create tenants\none per organization"]
-        D2["Create roles per tenant:\nviewer, uploader"]
-        D3["Assign each user\nto a tenant with a role"]
+        D1["Create a tenant per org"]
+        D2["Add roles: viewer, uploader"]
+        D3["Assign users to tenant + role"]
         D1 --> D2 --> D3
     end
 
-    subgraph AZ["Azure Portal"]
+    subgraph AZ ["  Azure Portal  "]
         direction TB
-        MI["Function App\nSystem-assigned Managed Identity"]
-        CA["tenant-a container"]
-        CB["tenant-b container"]
-        MI -->|"Storage Blob Data Contributor"| CA
-        MI -->|"Storage Blob Data Contributor"| CB
+        MI["Managed Identity\non Function App"]
+        C1["org-a container"]
+        C2["org-b container"]
+        MI -->|"Blob Data Contributor"| C1
+        MI -->|"Blob Data Contributor"| C2
     end
 
-    DC -->|"tenant ID = container name"| AZ
+    DC -->|"tenant ID must match\ncontainer name"| AZ
 
-    style DC fill:#ede9fe,stroke:#7c3aed,color:#1e293b
-    style AZ fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
-    style D1 fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
-    style D2 fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
-    style D3 fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
-    style MI fill:#bfdbfe,stroke:#1d4ed8,color:#1e293b
-    style CA fill:#d5e8d4,stroke:#82b366,color:#1e293b
-    style CB fill:#fff2cc,stroke:#d6b656,color:#1e293b
+    style DC fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
+    style AZ fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
+    style D1 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style D2 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style D3 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style MI fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
+    style C1 fill:#dcfce7,stroke:#16a34a,color:#1e293b
+    style C2 fill:#fef9c3,stroke:#ca8a04,color:#1e293b
 ```
+
+> The Descope tenant ID and the Azure container name must match — that's the only coupling between the two systems.
 
 ---
 
-## Runtime — fully automatic
+## Runtime — sign in, then everything is automatic
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#1e293b', 'actorBorder': '#0f172a', 'actorTextColor': '#f8fafc', 'actorLineColor': '#cbd5e1', 'signalColor': '#64748b', 'signalTextColor': '#334155', 'noteBkgColor': '#f8fafc', 'noteBorderColor': '#e2e8f0', 'noteTextColor': '#64748b', 'activationBkgColor': '#ede9fe', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#7c3aed'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#1e293b', 'actorBorder': '#0f172a', 'actorTextColor': '#f8fafc', 'actorLineColor': '#cbd5e1', 'signalColor': '#475569', 'signalTextColor': '#1e293b', 'noteBkgColor': '#f8fafc', 'noteBorderColor': '#e2e8f0', 'noteTextColor': '#475569', 'activationBkgColor': '#dbeafe', 'activationBorderColor': '#1d4ed8'}}}%%
 sequenceDiagram
-    autonumber
     actor User
-    participant Descope as Descope
-    participant Func as Azure Function
-    participant Blob as Blob Storage
+    participant D as Descope
+    participant F as Azure Function
+    participant B as Blob Storage
 
-    rect rgb(245, 243, 255)
-        Note over User,Descope: Sign in
-        User->>+Descope: Authenticate (OTP / Magic Link)
-        Descope-->>-User: JWT with tenant ID and role embedded
-    end
+    Note over User,D: Sign in once
+    User->>+D: Authenticate
+    D-->>-User: JWT containing tenant ID and role
 
-    rect rgb(239, 246, 255)
-        Note over User,Blob: Access documents
-        User->>+Func: GET /api/documents  Bearer JWT
-        Note over Func: Validate JWT, read tenant + role, container = tenant ID
-        Func->>+Blob: List [tenant-id] container via Managed Identity
-        Blob-->>-Func: File list
-        Func-->>-User: tenantId, role, documents
+    Note over User,B: Every request after that
+    User->>+F: Request + JWT
+    Note over F: Reads tenant ID and role from JWT
+    F->>+B: Access [tenant-id] container via Managed Identity
+    B-->>-F: Files
+    F-->>-User: Done
 
-        opt uploader role
-            User->>+Func: POST /api/documents/upload  Bearer JWT
-            Note over Func: Confirms role == uploader, else 403
-            Func->>+Blob: Write to [tenant-id] container
-            Blob-->>-Func: 201 Created
-            Func-->>-User: Uploaded
-        end
-    end
+    Note over F: Upload blocked here if role is viewer
 ```

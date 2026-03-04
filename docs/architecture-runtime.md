@@ -1,47 +1,45 @@
 # Runtime Flow
 
-The tenant embedded in the Descope JWT routes the user to their organization's container.
-The role determines whether they can upload.
+The JWT Descope issues at sign-in carries both the tenant ID and role. The Function reads them directly from the token — no database, no extra API call.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#1e293b', 'actorBorder': '#0f172a', 'actorTextColor': '#f8fafc', 'actorLineColor': '#cbd5e1', 'signalColor': '#64748b', 'signalTextColor': '#334155', 'noteBkgColor': '#f8fafc', 'noteBorderColor': '#e2e8f0', 'noteTextColor': '#64748b', 'activationBkgColor': '#ede9fe', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#7c3aed'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#1e293b', 'actorBorder': '#0f172a', 'actorTextColor': '#f8fafc', 'actorLineColor': '#cbd5e1', 'signalColor': '#475569', 'signalTextColor': '#1e293b', 'noteBkgColor': '#f8fafc', 'noteBorderColor': '#e2e8f0', 'noteTextColor': '#475569', 'activationBkgColor': '#dbeafe', 'activationBorderColor': '#1d4ed8'}}}%%
 sequenceDiagram
-    autonumber
     actor User
-    participant Descope as Descope
-    participant Func as Azure Function
-    participant Blob as Blob Storage
+    participant D as Descope
+    participant F as Azure Function
+    participant B as Blob Storage
 
     rect rgb(245, 243, 255)
-        Note over User,Descope: Step 1 — Sign in
-        User->>+Descope: Sign in (OTP / Magic Link)
-        Note over Descope: Authenticates user, looks up tenant and role
-        Descope-->>-User: JWT with tenants claim containing tenant ID and role
+        Note over User,D: Step 1 — Sign in
+        User->>+D: Authenticate (OTP or Magic Link)
+        Note over D: Looks up tenant membership and role
+        D-->>-User: JWT — contains tenant ID and role, signed by Descope
     end
 
     rect rgb(239, 246, 255)
-        Note over User,Blob: Step 2 — Load documents
-        User->>+Func: GET /api/documents  Bearer JWT
-        Note over Func: Validate JWT via OIDC discovery
-        Note over Func: Parse tenants claim — tenant ID + role
-        Note over Func: container = tenant ID
-        Func->>+Blob: List blobs in [tenant-id] container via Managed Identity
-        Blob-->>-Func: File list
-        Func-->>-User: tenantId, role, container, documents
+        Note over User,B: Step 2 — Load documents
+        User->>+F: GET /api/documents with Bearer JWT
+        Note over F: Validates JWT signature via Descope OIDC endpoint
+        Note over F: Reads tenant ID and role directly from token claims
+        Note over F: Sets container = tenant ID
+        F->>+B: List files in that container via Managed Identity
+        B-->>-F: File list
+        F-->>-User: Files, plus tenant ID and role for the portal header
     end
 
     rect rgb(240, 253, 244)
-        Note over User,Blob: Step 3 — Upload (uploader role only)
-        User->>+Func: POST /api/documents/upload  Bearer JWT
-        Note over Func: Confirms role == uploader, else 403
-        Func->>+Blob: Write file to [tenant-id] container via Managed Identity
-        Blob-->>-Func: 201 Created
-        Func-->>-User: uploaded, container
+        Note over User,B: Step 3 — Upload (uploader role only)
+        User->>+F: POST /api/documents/upload with Bearer JWT
+        Note over F: Same JWT check — role must be uploader, else 403
+        F->>+B: Write file to same container via Managed Identity
+        B-->>-F: Saved
+        F-->>-User: File appears in portal immediately
     end
 ```
 
-**Tenant isolation:** users only ever access their own tenant's container. The tenant ID from the JWT is used as the container name — there is no path to another tenant's data.
+**Tenant isolation** — each organization's files live in a separate container named after their Descope tenant ID. A user from org-a cannot access org-b's container because their JWT only contains org-a's tenant ID.
 
-**Role enforcement:** viewers and uploaders in the same tenant see the same files. Only uploaders can write. The Managed Identity has Storage Blob Data Contributor on all containers; viewer write attempts are blocked at the application layer before reaching storage.
+**Role enforcement** — viewers and uploaders in the same org see the same files. Write access is blocked in the Function before touching storage.
 
-**No static secrets:** the Azure Function authenticates to Blob Storage via Managed Identity (`DefaultAzureCredential`). JWT validation uses Descope's OIDC discovery endpoint — no Descope SDK, no stored keys.
+**No storage keys anywhere** — the Function talks to Blob Storage via `DefaultAzureCredential` (Managed Identity in Azure, `az login` locally). No connection strings, no SAS tokens.
