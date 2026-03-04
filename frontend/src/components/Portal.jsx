@@ -95,19 +95,27 @@ export default function Portal() {
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Document Portal</h1>
-          <p className="text-sm text-slate-500">
-            {user?.email ?? user?.phone ?? 'User'} ·{' '}
+          <p className="text-sm text-slate-500 mb-1">{user?.email ?? user?.phone ?? 'User'}</p>
+          <div className="flex items-center gap-2 flex-wrap">
             {tenantId && (
-              <span className="font-medium text-slate-700">{tenantId}</span>
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400">Descope tenant</span>
+                <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{tenantId}</span>
+              </span>
             )}
-            {tenantId && ' · '}
-            <span className={`font-medium ${isUploader ? 'text-green-600' : 'text-blue-600'}`}>
-              {role}
+            <span className="inline-flex items-center gap-1.5 text-xs">
+              <span className="text-slate-400">Role</span>
+              <span className={`font-medium px-2 py-0.5 rounded ${isUploader ? 'text-green-700 bg-green-50' : 'text-blue-700 bg-blue-50'}`}>
+                {role}
+              </span>
             </span>
             {container && (
-              <span className="text-slate-400"> → {container}</span>
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400">Azure container</span>
+                <span className="font-mono font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{container}</span>
+              </span>
             )}
-          </p>
+          </div>
         </div>
 
         {/*
