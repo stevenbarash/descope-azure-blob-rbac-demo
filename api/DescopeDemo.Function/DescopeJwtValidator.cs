@@ -23,6 +23,7 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace DescopeDemo.Function;
 
@@ -161,5 +162,69 @@ public static class DescopeJwtValidator
         if (roles.Contains("uploader")) return "uploader";
         if (roles.Contains("viewer")) return "viewer";
         return "none"; // User is authenticated but has no recognized role.
+    }
+
+    /// <summary>
+    /// Extracts tenant ID and role from the Descope JWT's <c>tenants</c> claim.
+    ///
+    /// Descope's multi-tenant JWTs include a <c>tenants</c> claim shaped like:
+    /// <code>{ "hotel-a": { "roles": ["viewer"] } }</code>
+    ///
+    /// JwtSecurityTokenHandler does not flatten nested objects, so we re-parse
+    /// the raw JWT string. This is safe — the token was already validated by
+    /// <see cref="ValidateAsync"/>; we're only reading its payload here.
+    /// </summary>
+    /// <param name="rawToken">The validated JWT string (without "Bearer " prefix).</param>
+    /// <returns>
+    /// The first tenant ID found in the token plus the highest-privilege role
+    /// within that tenant. Returns ("", "none") if no valid tenant/role is found.
+    /// </returns>
+    public static (string tenantId, string role) GetTenantAndRole(string rawToken)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var jwt = handler.ReadJwtToken(rawToken);
+
+        if (!jwt.Payload.TryGetValue("tenants", out var tenantsValue) || tenantsValue == null)
+            return ("", "none");
+
+        // tenantsValue is an object deserialized from the JWT payload JSON.
+        // Serialize it back to a JSON string so System.Text.Json can parse it cleanly.
+        var tenantsJson = tenantsValue.ToString();
+        if (string.IsNullOrWhiteSpace(tenantsJson) || tenantsJson == "{}")
+            return ("", "none");
+
+        Dictionary<string, JsonElement>? tenants;
+        try
+        {
+            tenants = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(tenantsJson);
+        }
+        catch (JsonException)
+        {
+            return ("", "none");
+        }
+
+        if (tenants == null || tenants.Count == 0)
+            return ("", "none");
+
+        // Demo assumption: a user belongs to exactly one tenant.
+        // Take the first entry in the map.
+        var (tenantId, tenantInfo) = tenants.First();
+
+        var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (tenantInfo.TryGetProperty("roles", out var rolesElement) &&
+            rolesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var r in rolesElement.EnumerateArray())
+            {
+                var val = r.GetString();
+                if (val != null) roles.Add(val);
+            }
+        }
+
+        string role = roles.Contains("uploader") ? "uploader"
+                    : roles.Contains("viewer")   ? "viewer"
+                    : "none";
+
+        return (tenantId, role);
     }
 }
