@@ -91,17 +91,17 @@ public class DocumentsFunction
     /// Validates the Bearer token in the request's Authorization header.
     /// </summary>
     /// <returns>
-    /// <c>(principal, null)</c> on success, or <c>(null, IActionResult)</c> containing
-    /// a 401 response if the token is missing, malformed, or expired.
+    /// <c>(principal, rawToken, null)</c> on success, or <c>(null, null, IActionResult)</c>
+    /// containing a 401 response if the token is missing, malformed, or expired.
     /// </returns>
-    private async Task<(System.Security.Claims.ClaimsPrincipal? principal, IActionResult? error)>
+    private async Task<(System.Security.Claims.ClaimsPrincipal? principal, string? rawToken, IActionResult? error)>
         AuthenticateAsync(HttpRequest req)
     {
         // Every request must carry "Authorization: Bearer <jwt>".
         // The JWT is the Descope session token issued after the user signs in.
         var auth = req.Headers.Authorization.FirstOrDefault();
         if (auth == null || !auth.StartsWith("Bearer "))
-            return (null, new UnauthorizedObjectResult("Missing Authorization header."));
+            return (null, null, new UnauthorizedObjectResult("Missing Authorization header."));
 
         // Strip the "Bearer " prefix (7 characters) to get the raw JWT string.
         var token = auth["Bearer ".Length..];
@@ -111,9 +111,9 @@ public class DocumentsFunction
         // or null if the token is invalid, expired, or tampered with.
         var principal = await DescopeJwtValidator.ValidateAsync(token, _projectId);
         if (principal == null)
-            return (null, new UnauthorizedObjectResult("Invalid or expired token."));
+            return (null, null, new UnauthorizedObjectResult("Invalid or expired token."));
 
-        return (principal, null);
+        return (principal, token, null);
     }
 
     // ============================================================
@@ -136,21 +136,21 @@ public class DocumentsFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "documents")] HttpRequest req)
     {
         // Step 1 — Authenticate: validate the Descope JWT from the Authorization header.
-        var (principal, authError) = await AuthenticateAsync(req);
+        var (principal, rawToken, authError) = await AuthenticateAsync(req);
         if (authError != null) return authError; // 401 if token missing or invalid.
 
-        // Step 2 — Authorize: read the role from the verified JWT claims.
-        //   The role was assigned in the Descope Console and embedded in the token
+        // Step 2 — Authorize: read the tenant and role from the verified JWT's tenants claim.
+        //   The tenant and role were assigned in the Descope Console and embedded in the token
         //   at sign-in time. No database call needed.
-        var role = DescopeJwtValidator.GetRole(principal!);
-        if (role == "none")
+        var (tenantId, role) = DescopeJwtValidator.GetTenantAndRole(rawToken!);
+        if (role == "none" || string.IsNullOrEmpty(tenantId))
             return new ObjectResult("No valid role assigned.") { StatusCode = 403 };
 
-        // Step 3 — Select container based on role.
-        //   This is the entirety of the access control logic in application code.
-        //   Azure RBAC on the containers enforces the actual permission — even if
-        //   this line were wrong, Azure would deny unauthorized operations.
-        var containerName = role == "uploader" ? "docs-readwrite" : "docs-readonly";
+        // Step 3 — Select container based on tenant and role.
+        //   Container names are prefixed with the tenant ID so each tenant's documents
+        //   are isolated. Azure RBAC on the containers enforces the actual permission —
+        //   even if this line were wrong, Azure would deny unauthorized operations.
+        var containerName = role == "uploader" ? $"{tenantId}-readwrite" : $"{tenantId}-readonly";
         var container = GetContainer(containerName);
 
         // Step 4 — List blobs using the Managed Identity authenticated client.
@@ -167,9 +167,9 @@ public class DocumentsFunction
             });
         }
 
-        // Step 5 — Return the list along with the role and container name so the
+        // Step 5 — Return the list along with the tenant, role, and container name so the
         //   frontend can display them in the portal header.
-        return new OkObjectResult(new { role, container = containerName, documents = blobs });
+        return new OkObjectResult(new { tenantId, role, container = containerName, documents = blobs });
     }
 
     // ============================================================
@@ -190,12 +190,12 @@ public class DocumentsFunction
         string name)
     {
         // Step 1 — Authenticate.
-        var (principal, authError) = await AuthenticateAsync(req);
+        var (_, rawToken, authError) = await AuthenticateAsync(req);
         if (authError != null) return authError;
 
         // Step 2 — Authorize.
-        var role = DescopeJwtValidator.GetRole(principal!);
-        if (role == "none")
+        var (tenantId, role) = DescopeJwtValidator.GetTenantAndRole(rawToken!);
+        if (role == "none" || string.IsNullOrEmpty(tenantId))
             return new ObjectResult("No valid role assigned.") { StatusCode = 403 };
 
         // Step 3 — Validate the blob name to prevent path traversal.
@@ -207,8 +207,8 @@ public class DocumentsFunction
         if (name.Contains('/') || name.Contains('\\') || name.Contains(".."))
             return new BadRequestObjectResult("Invalid blob name.");
 
-        // Step 4 — Select the container the user is allowed to read from.
-        var containerName = role == "uploader" ? "docs-readwrite" : "docs-readonly";
+        // Step 4 — Select the tenant-specific container the user is allowed to read from.
+        var containerName = role == "uploader" ? $"{tenantId}-readwrite" : $"{tenantId}-readonly";
         var blobClient = GetContainer(containerName).GetBlobClient(name);
 
         // Step 5 — Stream the blob content directly to the HTTP response.
@@ -246,14 +246,14 @@ public class DocumentsFunction
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "documents/upload")] HttpRequest req)
     {
         // Step 1 — Authenticate.
-        var (principal, authError) = await AuthenticateAsync(req);
+        var (_, rawToken, authError) = await AuthenticateAsync(req);
         if (authError != null) return authError;
 
         // Step 2 — Authorize: only uploaders may write to the blob container.
         //   Viewers are denied here even before we touch storage. Azure RBAC would
         //   also deny the write if this check were somehow bypassed.
-        var role = DescopeJwtValidator.GetRole(principal!);
-        if (role != "uploader")
+        var (tenantId, role) = DescopeJwtValidator.GetTenantAndRole(rawToken!);
+        if (role != "uploader" || string.IsNullOrEmpty(tenantId))
             return new ObjectResult("Upload requires the 'uploader' role.") { StatusCode = 403 };
 
         // Step 3 — Read and sanitize the client-supplied blob name.
@@ -271,17 +271,18 @@ public class DocumentsFunction
         if (string.IsNullOrWhiteSpace(filename))
             filename = $"upload-{DateTime.UtcNow:yyyyMMddHHmmss}.bin";
 
-        // Step 4 — Upload the raw request body directly to the blob container.
+        // Step 4 — Upload the raw request body directly to the tenant-specific blob container.
         //   overwrite: false means Azure returns 409 Conflict if a blob with this
         //   name already exists, preventing accidental overwrites of existing files.
         //   The request body is streamed directly to storage without buffering the
         //   entire file in memory on the Function host.
-        var blobClient = GetContainer("docs-readwrite").GetBlobClient(filename);
+        var containerName = $"{tenantId}-readwrite";
+        var blobClient = GetContainer(containerName).GetBlobClient(filename);
         await blobClient.UploadAsync(req.Body, overwrite: false);
 
         // Step 5 — Log and return 201 Created with the stored blob name.
-        _log.LogInformation("Uploaded {Filename} to docs-readwrite by {Role}", filename, role);
-        return new ObjectResult(new { uploaded = filename, container = "docs-readwrite" })
+        _log.LogInformation("Uploaded {Filename} to {Container} by {Role}", filename, containerName, role);
+        return new ObjectResult(new { uploaded = filename, container = containerName })
         {
             StatusCode = 201
         };
