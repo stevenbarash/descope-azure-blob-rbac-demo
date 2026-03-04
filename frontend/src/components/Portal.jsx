@@ -43,6 +43,7 @@ export default function Portal() {
   // Derive display values from the API response.
   // We default to '…' while loading rather than showing a stale or wrong value.
   const role = data?.role ?? '…'
+  const tenantId = data?.tenantId ?? ''
   const isUploader = role === 'uploader'
   const docs = data?.documents ?? []
   const container = data?.container ?? ''
@@ -96,6 +97,10 @@ export default function Portal() {
           <h1 className="text-xl font-bold text-slate-800">Document Portal</h1>
           <p className="text-sm text-slate-500">
             {user?.email ?? user?.phone ?? 'User'} ·{' '}
+            {tenantId && (
+              <span className="font-medium text-slate-700">{tenantId}</span>
+            )}
+            {tenantId && ' · '}
             <span className={`font-medium ${isUploader ? 'text-green-600' : 'text-blue-600'}`}>
               {role}
             </span>
