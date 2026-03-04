@@ -17,8 +17,8 @@ flowchart TB
         direction TB
         MI["Function App\nSystem-assigned Managed Identity"]
         SA[("Storage Account")]
-        CA["&lt;tenant-a&gt;\ncontainer"]
-        CB["&lt;tenant-b&gt;\ncontainer"]
+        CA["tenant-a\ncontainer"]
+        CB["tenant-b\ncontainer"]
         CC["..."]
 
         SA -.->|contains| CA

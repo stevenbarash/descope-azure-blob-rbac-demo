@@ -15,26 +15,28 @@ sequenceDiagram
     rect rgb(245, 243, 255)
         Note over User,Descope: Step 1 — Sign in
         User->>+Descope: Sign in (OTP / Magic Link)
-        Note over Descope: Authenticates user, looks up their tenant and role
-        Descope-->>-User: JWT containing tenants claim<br/>{ "tenant-a": { "roles": ["viewer"] } }
+        Note over Descope: Authenticates user, looks up tenant and role
+        Descope-->>-User: JWT with tenants claim containing tenant ID and role
     end
 
     rect rgb(239, 246, 255)
         Note over User,Blob: Step 2 — Load documents
-        User->>+Func: GET /api/documents (Bearer JWT)
-        Note over Func: 1. Validate JWT via OIDC discovery (no static secrets)<br/>2. Parse tenants claim → tenant ID + role<br/>3. container = tenant ID
-        Func->>+Blob: List blobs in &lt;tenant-id&gt; container (Managed Identity)
+        User->>+Func: GET /api/documents  Bearer JWT
+        Note over Func: Validate JWT via OIDC discovery
+        Note over Func: Parse tenants claim — tenant ID + role
+        Note over Func: container = tenant ID
+        Func->>+Blob: List blobs in [tenant-id] container via Managed Identity
         Blob-->>-Func: File list
-        Func-->>-User: { tenantId, role, container, documents }
+        Func-->>-User: tenantId, role, container, documents
     end
 
     rect rgb(240, 253, 244)
         Note over User,Blob: Step 3 — Upload (uploader role only)
-        User->>+Func: POST /api/documents/upload (Bearer JWT)
-        Note over Func: Confirms role == "uploader"<br/>403 Forbidden if viewer
-        Func->>+Blob: Write file to &lt;tenant-id&gt; container (Managed Identity)
+        User->>+Func: POST /api/documents/upload  Bearer JWT
+        Note over Func: Confirms role == uploader, else 403
+        Func->>+Blob: Write file to [tenant-id] container via Managed Identity
         Blob-->>-Func: 201 Created
-        Func-->>-User: { uploaded, container }
+        Func-->>-User: uploaded, container
     end
 ```
 

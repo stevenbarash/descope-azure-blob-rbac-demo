@@ -23,13 +23,13 @@ flowchart LR
 
     subgraph BLOB["Azure Blob Storage"]
         direction TB
-        TA["&lt;tenant-a&gt;"]
-        TB["&lt;tenant-b&gt;"]
+        TA["tenant-a"]
+        TB["tenant-b"]
         TC["..."]
     end
 
     FE -->|"Bearer JWT"| API
-    API -->|"Managed Identity\n(no keys)"| BLOB
+    API -->|"Managed Identity\nno keys"| BLOB
 
     style FE fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
     style API fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
@@ -51,8 +51,8 @@ flowchart LR
 flowchart TB
     subgraph DC["Descope Console"]
         direction TB
-        D1["Create tenants\n(one per organization)"]
-        D2["Create roles per tenant:\nviewer · uploader"]
+        D1["Create tenants\none per organization"]
+        D2["Create roles per tenant:\nviewer, uploader"]
         D3["Assign each user\nto a tenant with a role"]
         D1 --> D2 --> D3
     end
@@ -60,8 +60,8 @@ flowchart TB
     subgraph AZ["Azure Portal"]
         direction TB
         MI["Function App\nSystem-assigned Managed Identity"]
-        CA["&lt;tenant-a&gt; container"]
-        CB["&lt;tenant-b&gt; container"]
+        CA["tenant-a container"]
+        CB["tenant-b container"]
         MI -->|"Storage Blob Data Contributor"| CA
         MI -->|"Storage Blob Data Contributor"| CB
     end
@@ -94,21 +94,21 @@ sequenceDiagram
     rect rgb(245, 243, 255)
         Note over User,Descope: Sign in
         User->>+Descope: Authenticate (OTP / Magic Link)
-        Descope-->>-User: JWT — tenants: { "tenant-a": { "roles": ["viewer"] } }
+        Descope-->>-User: JWT with tenant ID and role embedded
     end
 
     rect rgb(239, 246, 255)
         Note over User,Blob: Access documents
-        User->>+Func: GET /api/documents (Bearer JWT)
-        Note over Func: Validate JWT · read tenant + role · container = tenant ID
-        Func->>+Blob: List &lt;tenant-id&gt; container (Managed Identity)
+        User->>+Func: GET /api/documents  Bearer JWT
+        Note over Func: Validate JWT, read tenant + role, container = tenant ID
+        Func->>+Blob: List [tenant-id] container via Managed Identity
         Blob-->>-Func: File list
-        Func-->>-User: { tenantId, role, documents }
+        Func-->>-User: tenantId, role, documents
 
-        opt uploader role — upload a file
-            User->>+Func: POST /api/documents/upload (Bearer JWT)
-            Note over Func: Confirms role == uploader (403 if viewer)
-            Func->>+Blob: Write to &lt;tenant-id&gt; container
+        opt uploader role
+            User->>+Func: POST /api/documents/upload  Bearer JWT
+            Note over Func: Confirms role == uploader, else 403
+            Func->>+Blob: Write to [tenant-id] container
             Blob-->>-Func: 201 Created
             Func-->>-User: Uploaded
         end
