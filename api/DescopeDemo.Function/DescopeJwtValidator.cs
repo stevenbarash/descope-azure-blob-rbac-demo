@@ -11,7 +11,7 @@
 //   2. Use those keys to verify the token's RSA signature.
 //   3. Check that the issuer matches our Descope project.
 //   4. Check that the token hasn't expired.
-//   5. Read the "roles" claim out of the verified payload.
+//   5. Read the tenant and role from the "tenants" claim in the verified payload.
 //
 //   The signing keys are cached in a ConfigurationManager so we only call
 //   Descope's discovery endpoint once (plus background refreshes every ~1h).
@@ -135,33 +135,6 @@ public static class DescopeJwtValidator
         // Note: we intentionally don't catch other exceptions (e.g., HttpRequestException
         // if Descope's discovery endpoint is unreachable). Those surface as 500 errors,
         // which is correct — a network failure is not the same as a bad token.
-    }
-
-    /// <summary>
-    /// Extracts the highest-privilege role from the Descope JWT claims.
-    ///
-    /// Descope encodes roles as a JSON array in the <c>roles</c> claim, e.g.
-    /// <c>"roles": ["uploader"]</c>. However, <see cref="JwtSecurityTokenHandler"/>
-    /// maps the JWT <c>roles</c> claim name to the full .NET URI
-    /// <c>ClaimTypes.Role</c> (<c>http://schemas.microsoft.com/ws/2008/06/identity/claims/role</c>).
-    /// We union both claim names to handle either mapping safely.
-    /// </summary>
-    /// <returns>"uploader", "viewer", or "none" if no recognized role is present.</returns>
-    public static string GetRole(ClaimsPrincipal principal)
-    {
-        // JwtSecurityTokenHandler silently renames well-known JWT claim names to
-        // their .NET equivalents. The JWT claim "roles" becomes ClaimTypes.Role
-        // (a long URI). We search both names so the code works regardless of
-        // which claim type the handler used for a given token.
-        var roles = principal.FindAll("roles")          // raw JWT claim name
-            .Concat(principal.FindAll(ClaimTypes.Role)) // .NET mapped claim name
-            .Select(c => c.Value)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Uploader takes precedence in case a user has both roles assigned.
-        if (roles.Contains("uploader")) return "uploader";
-        if (roles.Contains("viewer")) return "viewer";
-        return "none"; // User is authenticated but has no recognized role.
     }
 
     /// <summary>
