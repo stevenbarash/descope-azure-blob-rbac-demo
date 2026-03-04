@@ -42,7 +42,7 @@ export default function LoginPage() {
           for debugging during development.
         */}
         <Descope
-          flowId="sign-in"
+          flowId="sign-in-otp"
           onSuccess={() => {}}
           onError={(e) => console.error('Auth error:', e)}
           theme="light"

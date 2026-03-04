@@ -20,7 +20,7 @@ import UploadPanel from './UploadPanel'
 
 // Display helper: formats a byte count as a human-readable string.
 function formatSize(bytes) {
-  if (!bytes) return '—'
+  if (bytes == null) return '—'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1048576).toFixed(1)} MB`
@@ -73,13 +73,16 @@ export default function Portal() {
     const url = URL.createObjectURL(blob)
 
     // Trigger the download by programmatically clicking a temporary <a> element.
+    // The element must be in the DOM for Firefox to honour the click as a download.
     const a = document.createElement('a')
     a.href = url
     a.download = blobName
+    document.body.appendChild(a)
     a.click()
+    document.body.removeChild(a)
 
-    // Clean up the object URL immediately — the browser has queued the download.
-    URL.revokeObjectURL(url)
+    // Defer revocation so the browser has time to read the URL before it disappears.
+    setTimeout(() => URL.revokeObjectURL(url), 100)
   }
 
   return (
