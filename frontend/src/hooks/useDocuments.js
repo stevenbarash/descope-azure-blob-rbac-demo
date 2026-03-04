@@ -7,50 +7,51 @@
 //   2. Call GET /api/documents with "Authorization: Bearer <token>".
 //      (Vite proxies /api/* to the Azure Function in development.)
 //   3. The Azure Function validates the token, reads the role, and
-//      returns { role, container, documents: [...] }.
+//      returns { tenantId, role, container, documents: [...] }.
 //   4. Expose the result plus loading/error state to the caller.
 //
-// The hook re-runs automatically when sessionToken changes (i.e., on
-// sign-in or after a token refresh). Callers can also trigger a manual
-// reload via the returned `reload` function (used after an upload).
+// Token handling:
+//   The Descope SDK refreshes the session token automatically before it
+//   expires. We keep a ref to always use the latest token, and we
+//   re-fetch whenever the tab becomes visible again — so returning after
+//   an idle period (during which the SDK may have silently refreshed)
+//   always loads fresh data with a valid token.
 // ============================================================
 
 import { useSession } from '@descope/react-sdk'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 /**
  * Fetches the document list from the API and exposes reload/loading/error state.
  *
- * `sessionToken` is the raw Descope JWT string. The SDK stores it in localStorage
- * and automatically refreshes it before expiry via the AuthProvider. We send it
- * as a Bearer token so the Azure Function can validate it server-side.
+ * Uses a ref for the session token so `load` always reads the current value
+ * even when called from a long-lived event listener (e.g., visibilitychange).
  */
 export function useDocuments() {
-  // sessionToken: the raw JWT string managed by the Descope AuthProvider.
-  // It is undefined until the user is authenticated.
   const { sessionToken } = useSession()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Keep a ref in sync with sessionToken so event handlers always read the
+  // latest value without needing to be re-registered on every token change.
+  const tokenRef = useRef(sessionToken)
+  useEffect(() => {
+    tokenRef.current = sessionToken
+  }, [sessionToken])
+
   async function load() {
+    const token = tokenRef.current
+    if (!token) return
     setLoading(true)
     setError(null)
     try {
-      // Send the JWT as a Bearer token. The Azure Function validates this token
-      // server-side using Descope's OIDC public keys — the API never trusts the
-      // role or user identity from the frontend directly.
       const res = await fetch('/api/documents', {
-        headers: { Authorization: `Bearer ${sessionToken}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-
-      // The response shape is: { role, container, documents: [{ name, sizeBytes, lastModified }] }
-      // On success, replace stale data so the UI always reflects the latest list.
       setData(await res.json())
     } catch (e) {
-      // Clear stale data on error so the UI doesn't show an old document list
-      // alongside an error message (e.g., after a token expiry mid-session).
       setData(null)
       setError(e.message)
     } finally {
@@ -58,13 +59,23 @@ export function useDocuments() {
     }
   }
 
-  // Re-fetch whenever the session token changes.
-  // sessionToken is undefined before sign-in and populated after, so this
-  // naturally triggers the first load as soon as the user authenticates.
+  // Re-fetch when the session token changes (sign-in or SDK-driven refresh).
   useEffect(() => {
     if (sessionToken) load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionToken])
+
+  // Re-fetch when the user returns to the tab.
+  // The SDK may have silently refreshed the token while the tab was hidden;
+  // this ensures the document list is always fresh on return.
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return { data, loading, error, reload: load }
 }
