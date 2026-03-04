@@ -1,0 +1,61 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api", "api", "{D82C56D6-B2CD-F611-9E31-04638F7EC30E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DescopeDemo_Function", "api\DescopeDemo.Function\DescopeDemo_Function.csproj", "{4F87994A-B443-7547-7C2D-6620E43944AA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DescopeDemo.Function", "DescopeDemo.Function", "{2BCAD0BA-B3CF-5553-1222-C146DE018CA8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "obj", "obj", "{551DE43E-A393-54F9-4A7C-37889CD08BA5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "release", "release", "{449F0BF1-6C06-D3A4-5297-50BCFE1C0F42}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "net8.0", "net8.0", "{DA965F2E-DBB3-C0B1-7272-73C2972548DE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerExtensions", "api\DescopeDemo.Function\obj\release\net8.0\WorkerExtensions\WorkerExtensions.csproj", "{3BE0C231-71E0-E077-C847-717594752779}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Debug", "Debug", "{67782EAD-7415-C9EB-F928-63A8DD13B119}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "net8.0", "net8.0", "{20D577DA-B782-6832-3C0A-FB8EA878926C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerExtensions", "api\DescopeDemo.Function\obj\Debug\net8.0\WorkerExtensions\WorkerExtensions.csproj", "{97B7EA44-FE09-E804-13B0-935CB45F75D8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4F87994A-B443-7547-7C2D-6620E43944AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F87994A-B443-7547-7C2D-6620E43944AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F87994A-B443-7547-7C2D-6620E43944AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F87994A-B443-7547-7C2D-6620E43944AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3BE0C231-71E0-E077-C847-717594752779}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3BE0C231-71E0-E077-C847-717594752779}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3BE0C231-71E0-E077-C847-717594752779}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3BE0C231-71E0-E077-C847-717594752779}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97B7EA44-FE09-E804-13B0-935CB45F75D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97B7EA44-FE09-E804-13B0-935CB45F75D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97B7EA44-FE09-E804-13B0-935CB45F75D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97B7EA44-FE09-E804-13B0-935CB45F75D8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4F87994A-B443-7547-7C2D-6620E43944AA} = {D82C56D6-B2CD-F611-9E31-04638F7EC30E}
+		{2BCAD0BA-B3CF-5553-1222-C146DE018CA8} = {D82C56D6-B2CD-F611-9E31-04638F7EC30E}
+		{551DE43E-A393-54F9-4A7C-37889CD08BA5} = {2BCAD0BA-B3CF-5553-1222-C146DE018CA8}
+		{449F0BF1-6C06-D3A4-5297-50BCFE1C0F42} = {551DE43E-A393-54F9-4A7C-37889CD08BA5}
+		{DA965F2E-DBB3-C0B1-7272-73C2972548DE} = {449F0BF1-6C06-D3A4-5297-50BCFE1C0F42}
+		{3BE0C231-71E0-E077-C847-717594752779} = {DA965F2E-DBB3-C0B1-7272-73C2972548DE}
+		{67782EAD-7415-C9EB-F928-63A8DD13B119} = {551DE43E-A393-54F9-4A7C-37889CD08BA5}
+		{20D577DA-B782-6832-3C0A-FB8EA878926C} = {67782EAD-7415-C9EB-F928-63A8DD13B119}
+		{97B7EA44-FE09-E804-13B0-935CB45F75D8} = {20D577DA-B782-6832-3C0A-FB8EA878926C}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1E1AB05F-E724-4CA3-B319-36E4C573F255}
+	EndGlobalSection
+EndGlobal

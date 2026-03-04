@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "DescopeDemo_Function": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7223",
+      "launchBrowser": false
+    }
+  }
+}
