@@ -1,0 +1,36 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f8fafc', 'primaryBorderColor': '#e2e8f0', 'primaryTextColor': '#1e293b', 'lineColor': '#94a3b8', 'clusterBkg': '#f8fafc', 'clusterBorder': '#e2e8f0', 'edgeLabelBackground': '#ffffff', 'fontSize': '15px'}}}%%
+flowchart LR
+    U(["User"])
+
+    subgraph DS ["  Descope  "]
+        S1["Sign-in flow<br/>OTP or Magic Link"]
+        S2["JWT issued<br/>tenant ID + role inside"]
+        S1 --> S2
+    end
+
+    subgraph FN ["  Azure Function  "]
+        F1["Validate JWT<br/>via OIDC — no secrets"]
+        F2["container = tenant ID<br/>role gates upload"]
+        F1 --> F2
+    end
+
+    subgraph BL ["  Azure Blob Storage  "]
+        B1["org-a"]
+        B2["org-b"]
+    end
+
+    U -->|"signs in"| DS
+    DS -->|"JWT"| U
+    U -->|"JWT on every request"| FN
+    FN -->|"Managed Identity<br/>no storage keys"| BL
+
+    style U fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
+    style DS fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
+    style FN fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
+    style BL fill:#f0fdf4,stroke:#16a34a,color:#1e293b
+    style S1 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style S2 fill:#ede9fe,stroke:#7c3aed,color:#1e293b
+    style F1 fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
+    style F2 fill:#dbeafe,stroke:#1d4ed8,color:#1e293b
+    style B1 fill:#dcfce7,stroke:#16a34a,color:#1e293b
+    style B2 fill:#fef9c3,stroke:#ca8a04,color:#1e293b

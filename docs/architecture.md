@@ -12,14 +12,14 @@ flowchart LR
     U(["User"])
 
     subgraph DS ["  Descope  "]
-        S1["Sign-in flow\nOTP or Magic Link"]
-        S2["JWT issued\ntenant ID + role inside"]
+        S1["Sign-in flow<br/>OTP or Magic Link"]
+        S2["JWT issued<br/>tenant ID + role inside"]
         S1 --> S2
     end
 
     subgraph FN ["  Azure Function  "]
-        F1["Validate JWT\nvia OIDC — no secrets"]
-        F2["container = tenant ID\nrole gates upload"]
+        F1["Validate JWT<br/>via OIDC — no secrets"]
+        F2["container = tenant ID<br/>role gates upload"]
         F1 --> F2
     end
 
@@ -31,7 +31,7 @@ flowchart LR
     U -->|"signs in"| DS
     DS -->|"JWT"| U
     U -->|"JWT on every request"| FN
-    FN -->|"Managed Identity\nno storage keys"| BL
+    FN -->|"Managed Identity<br/>no storage keys"| BL
 
     style U fill:#f8fafc,stroke:#cbd5e1,color:#1e293b
     style DS fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
@@ -64,14 +64,14 @@ flowchart LR
 
     subgraph AZ ["  Azure Portal  "]
         direction TB
-        MI["Managed Identity\non Function App"]
+        MI["Managed Identity<br/>on Function App"]
         C1["org-a container"]
         C2["org-b container"]
         MI -->|"Blob Data Contributor"| C1
         MI -->|"Blob Data Contributor"| C2
     end
 
-    DC -->|"tenant ID must match\ncontainer name"| AZ
+    DC -->|"tenant ID must match<br/>container name"| AZ
 
     style DC fill:#f5f3ff,stroke:#7c3aed,color:#1e293b
     style AZ fill:#eff6ff,stroke:#1d4ed8,color:#1e293b
